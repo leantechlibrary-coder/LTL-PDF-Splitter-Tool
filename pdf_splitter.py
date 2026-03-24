@@ -4,31 +4,313 @@ from pathlib import Path
 import fitz  # PyMuPDF
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QScrollArea, QLabel, QFileDialog, QMessageBox, QStatusBar, QFrame, QGridLayout, QSlider
+    QPushButton, QScrollArea, QLabel, QFileDialog, QMessageBox,
+    QStatusBar, QFrame, QGridLayout, QSlider, QDialog, QTextEdit
 )
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap, QImage, QDragEnterEvent, QDropEvent
+from PyQt6.QtGui import QPixmap, QImage, QDragEnterEvent, QDropEvent, QFont
+
+
+class TextViewerDialog(QDialog):
+    """テキスト全文表示用の子ダイアログ"""
+
+    def __init__(self, parent, title: str, content: str):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.resize(620, 500)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        text_edit = QTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setPlainText(content)
+        text_edit.setFont(QFont("Yu Gothic UI", 9))
+        text_edit.moveCursor(text_edit.textCursor().MoveOperation.Start)
+        layout.addWidget(text_edit)
+
+        close_btn = QPushButton("閉じる")
+        close_btn.setFixedWidth(100)
+        close_btn.clicked.connect(self.accept)
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
+
+
+class AboutDialog(QDialog):
+    """カスタムAboutダイアログ（操作説明書・README・ライセンス情報へのリンク付き）"""
+
+    # --- 埋め込みテキスト定数 ---
+    # MSIX / Microsoft Store 配布前提で改訂済み
+
+    README_TEXT = (
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "PDF証拠整理ツール\n"
+        "README\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "この度はPDF証拠整理ツールをご利用いただき、\n"
+        "誠にありがとうございます。\n\n"
+        "本ツールは、訴訟・紛争案件における証拠整理業務を\n"
+        "効率化するために開発された専用ツールです。\n\n\n"
+        "■ 収録ツール\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "・PDF分割ツール\n"
+        "  PDFファイルを複数の分割ポイントで一度に分割\n\n"
+        "・証拠番号付与ツール\n"
+        "  PDFファイルに証拠番号（甲第○号証等）を自動付与\n\n\n"
+        "■ 動作環境\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "OS：Windows 10 / 11（64bit）\n"
+        "メモリ：8GB以上推奨\n"
+        "ストレージ：500MB以上の空き容量\n\n\n"
+        "■ 起動方法\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Microsoft Storeからインストール後、\n"
+        "スタートメニューから起動してください。\n\n\n"
+        "■ クイックスタート\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "＜PDF分割ツール＞\n"
+        "1. 「PDFを開く」で対象ファイルを選択\n"
+        "2. 分割したい先頭ページをクリック（複数選択可）\n"
+        "3. 「分割実行」をクリック\n\n"
+        "＜証拠番号付与ツール＞\n"
+        "1. 「フォルダを開く」でPDFファイルを読み込み\n"
+        "2. ファイルの順番を調整（ドラッグ＆ドロップ）\n"
+        "3. 証拠種別（甲/乙等）とフォント設定\n"
+        "4. 「証拠番号を付与して保存」をクリック\n\n\n"
+        "■ よくある質問\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Q. 元のPDFファイルが変更されることはありますか？\n"
+        "A. ありません。常に新しいファイルとして保存されます。\n\n"
+        "Q. Googleドライブに保存できますか？\n"
+        "A. Googleドライブデスクトップの同期フォルダを\n"
+        "   出力先に指定することで可能です。\n\n"
+        "Q. 何号証まで対応していますか？\n"
+        "A. システム上は9999号証まで対応しています。\n\n\n"
+        "■ ご注意事項\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "・本ツールは現状有姿での提供となります\n"
+        "・パスワード保護されたPDFには対応していません\n"
+        "・重要なファイルは必ずバックアップを取ってからご使用ください\n\n\n"
+        "■ 免責事項\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "本ソフトウェアの使用により生じたいかなる損害についても、\n"
+        "開発者は一切の責任を負いかねます。\n\n\n"
+        "■ 著作権とライセンス\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "開発・販売：Lean Tech Library\n\n"
+        "本ソフトウェアはAGPL-3.0ライセンスの下で配布されています。\n"
+        "再配布の際はライセンス条件に従ってください。\n\n"
+        "ソースコード：\n"
+        "https://github.com/leantechlibrary-coder/LTL-PDF-Splitter-Tool\n"
+    )
+
+    MANUAL_TEXT = (
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "PDF証拠整理ツール 操作説明書\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "■ 目次\n"
+        "  1. PDF分割ツールの使い方\n"
+        "  2. 証拠番号付与ツールの使い方\n"
+        "  3. よくある質問（FAQ）\n\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "1. PDF分割ツールの使い方\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "【基本操作】\n\n"
+        "(1) PDFファイルを開く\n"
+        "  ・「PDFを開く」ボタンをクリック\n"
+        "  ・または、PDFファイルをウィンドウにドラッグ＆ドロップ\n\n"
+        "(2) 分割ポイントを選択\n"
+        "  ・サムネイル一覧が表示されます\n"
+        "  ・分割したい先頭ページをクリック（青い枠が表示されます）\n"
+        "  ・複数選択可能です（再クリックで解除）\n\n"
+        "(3) 分割実行\n"
+        "  ・「分割実行」ボタンをクリック\n"
+        "  ・確認ダイアログが表示されるので「Yes」を選択\n"
+        "  ・分割完了後、出力フォルダが自動的に開きます\n\n"
+        "【サムネイル表示の調整】\n"
+        "  ・画面右上のスライダーでサムネイルサイズと列数を調整できます\n"
+        "  ・サイズ：100px～500px\n"
+        "  ・列数：2列～6列\n\n"
+        "【出力について】\n"
+        "  ・出力先：元のPDFファイルと同じフォルダ内に\n"
+        "    「元ファイル名_分割」フォルダを自動作成\n"
+        "  ・同名フォルダがある場合は「_分割_2」「_分割_3」と連番が付きます\n"
+        "  ・ファイル名：元ファイル名_001.pdf、元ファイル名_002.pdf...\n\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "2. 証拠番号付与ツールの使い方\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "【基本操作】\n\n"
+        "(1) PDFファイルを読み込む\n"
+        "  ・「フォルダを開く」：フォルダ内の全PDFファイルを読み込み\n"
+        "  ・「ファイルを追加」：個別にファイルを選択して追加\n"
+        "  ・ドラッグ＆ドロップ：ファイル/フォルダをウィンドウに直接ドロップ\n\n"
+        "(2) ファイルの順番を調整\n"
+        "  ・ファイルリストをドラッグ＆ドロップで並び替え\n"
+        "  ・または「↑上へ」「↓下へ」ボタンで移動\n\n"
+        "(3) 枝番の設定（必要な場合のみ）\n"
+        "  ・枝番にしたいファイルを選択\n"
+        "  ・「枝番にする」ボタンをクリック\n"
+        "  ・例：第2号証の後に枝番を設定すると「甲02の1」「甲02の2」\n"
+        "  ・解除する場合は「枝番を解除」ボタン\n\n"
+        "(4) 証拠番号の設定\n"
+        "  ・証拠種別：甲/乙/その他（カスタム文字列）\n"
+        "  ・開始番号：通常は1から\n"
+        "  ・証拠番号を印字する：チェックONで1ページ目右上に番号を印字\n"
+        "  ・フォントサイズ：8pt～72pt（デフォルト16pt）\n"
+        "  ・フォント色：赤/黒/青（デフォルト赤）\n\n"
+        "(5) 実行\n"
+        "  ・「証拠番号を付与して保存」ボタンをクリック\n"
+        "  ・確認ダイアログで内容を確認\n"
+        "  ・完了後、出力フォルダが自動的に開きます\n\n"
+        "【出力について】\n"
+        "  ・出力先：読み込んだファイルの親フォルダ内に\n"
+        "    「親フォルダ名_番号付」フォルダを自動作成\n"
+        "  ・ファイル名：「甲01.pdf」「甲02.pdf」「甲03の1.pdf」など\n\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "3. よくある質問（FAQ）\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Q. Googleドライブに保存できますか？\n"
+        "A. Googleドライブデスクトップの同期フォルダを\n"
+        "   出力先に指定することで可能です。\n\n"
+        "Q. 何号証まで対応していますか？\n"
+        "A. システム上は9999号証まで対応しています。\n\n"
+        "Q. 元のファイルが上書きされることはありますか？\n"
+        "A. ありません。常に別フォルダに新規ファイルとして出力されます。\n\n"
+        "Q. 同じPDFを2回分割するとどうなりますか？\n"
+        "A. 出力フォルダに「_分割_2」「_分割_3」と連番が付き、\n"
+        "   前回の分割結果は上書きされません。\n\n"
+        "Q. PDFにパスワードがかかっている場合は？\n"
+        "A. パスワード保護されたPDFには対応していません。\n"
+        "   事前にパスワードを解除してから処理してください。\n"
+    )
+
+    LICENSE_TEXT = (
+        "================================================================================\n"
+        "THIRD-PARTY SOFTWARE LICENSES\n"
+        "PDF証拠整理ツール\n"
+        "================================================================================\n\n"
+        "本ソフトウェアは、以下のオープンソースソフトウェアを使用しています。\n"
+        "各ソフトウェアのライセンス条項に従い、ライセンス情報を記載します。\n\n\n"
+        "================================================================================\n"
+        "1. PyMuPDF (fitz)\n"
+        "================================================================================\n\n"
+        "License: GNU Affero General Public License v3.0 (AGPL-3.0)\n"
+        "Copyright: Artifex Software, Inc.\n"
+        "Website: https://github.com/pymupdf/PyMuPDF\n\n"
+        "ライセンス全文：https://www.gnu.org/licenses/agpl-3.0.txt\n\n\n"
+        "================================================================================\n"
+        "2. PyQt6\n"
+        "================================================================================\n\n"
+        "License: GNU General Public License v3.0 (GPL-3.0)\n"
+        "Copyright: Riverbank Computing Limited\n"
+        "Website: https://www.riverbankcomputing.com/software/pyqt/\n\n"
+        "ライセンス全文：https://www.gnu.org/licenses/gpl-3.0.txt\n\n\n"
+        "================================================================================\n"
+        "3. Python\n"
+        "================================================================================\n\n"
+        "License: Python Software Foundation License (PSF)\n"
+        "Copyright: Python Software Foundation\n"
+        "Website: https://www.python.org/\n\n"
+        "ライセンス全文：https://docs.python.org/3/license.html\n\n\n"
+        "================================================================================\n"
+        "本ソフトウェアのライセンス\n"
+        "================================================================================\n\n"
+        "本ソフトウェア（PDF証拠整理ツール）は、\n"
+        "GNU Affero General Public License v3.0 (AGPL-3.0) の下で配布されます。\n"
+        "再配布の際はライセンス条件に従ってください。\n\n"
+        "ソースコード：\n"
+        "https://github.com/leantechlibrary-coder/LTL-PDF-Splitter-Tool\n\n\n"
+        "================================================================================\n"
+        "免責事項\n"
+        "================================================================================\n\n"
+        "本ソフトウェアは「現状有姿」(AS IS) で提供され、いかなる保証もありません。\n"
+        "本ソフトウェアの使用により生じたいかなる損害についても、開発者は\n"
+        "一切の責任を負いません。\n"
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("このソフトについて")
+        self.resize(520, 480)
+        self.setMinimumSize(400, 350)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setSpacing(12)
+
+        title_label = QLabel("PDF分割ツール v1.0")
+        title_label.setFont(QFont("Yu Gothic UI", 12, QFont.Weight.Bold))
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+
+        about_text = QTextEdit()
+        about_text.setReadOnly(True)
+        about_text.setFont(QFont("Yu Gothic UI", 9))
+        about_text.setPlainText(
+            "【動作環境】\n"
+            "Windows 10 / 11 (64bit)\n\n"
+            "【重要】\n"
+            "本ソフトウェアは法律専門職の業務効率化を目的としており、\n"
+            "専門知識を前提とした設計です。\n\n"
+            "【免責事項】\n"
+            "本ソフトウェアは「現状有姿」(AS IS) で提供されます。\n"
+            "本ソフトウェアの使用により生じたいかなる損害についても、\n"
+            "開発者は一切の責任を負いません。\n"
+            "重要なファイルは必ずバックアップを取ってからご使用ください。\n\n"
+            "【開発・販売】\n"
+            "Lean Tech Library\n\n"
+            "ご使用前に操作説明書・READMEをご確認ください。"
+        )
+        layout.addWidget(about_text)
+
+        link_layout = QHBoxLayout()
+        link_layout.setSpacing(8)
+
+        manual_btn = QPushButton("操作説明書")
+        manual_btn.setToolTip("操作説明書を表示します")
+        manual_btn.clicked.connect(self._show_manual)
+
+        readme_btn = QPushButton("README")
+        readme_btn.setToolTip("READMEを表示します")
+        readme_btn.clicked.connect(self._show_readme)
+
+        license_btn = QPushButton("ライセンス情報")
+        license_btn.setToolTip("サードパーティライセンス情報を表示します")
+        license_btn.clicked.connect(self._show_licenses)
+
+        link_layout.addWidget(manual_btn)
+        link_layout.addWidget(readme_btn)
+        link_layout.addWidget(license_btn)
+        layout.addLayout(link_layout)
+
+        close_layout = QHBoxLayout()
+        close_layout.addStretch()
+        close_btn = QPushButton("閉じる")
+        close_btn.setFixedWidth(100)
+        close_btn.clicked.connect(self.accept)
+        close_layout.addWidget(close_btn)
+        close_layout.addStretch()
+        layout.addLayout(close_layout)
+
+    def _show_manual(self):
+        dlg = TextViewerDialog(self, "操作説明書", self.MANUAL_TEXT)
+        dlg.exec()
+
+    def _show_readme(self):
+        dlg = TextViewerDialog(self, "README", self.README_TEXT)
+        dlg.exec()
+
+    def _show_licenses(self):
+        dlg = TextViewerDialog(self, "ライセンス情報", self.LICENSE_TEXT)
+        dlg.exec()
 
 
 def show_about_dialog():
     """Aboutダイアログを表示"""
-    text = (
-        "PDF分割ツール v1.0\n\n"
-        "【動作環境】\n"
-        "Windows 11 (64bit)\n\n"
-        "【重要】\n"
-        "本ソフトウェアは法律専門職の業務効率化を目的としており、\n"
-        "専門知識を前提とした設計です。\n\n"
-        "【免責事項】\n"
-        "本ソフトウェアは「現状有姿」(AS IS) で提供されます。\n"
-        "- 不具合の修正、機能追加は行いません\n"
-        "- 使用方法に関するサポートは行いません\n"
-        "- 本ソフトウェアの使用により生じたいかなる損害についても、\n"
-        "  開発者は一切の責任を負いません\n"
-        "- 重要なファイルは必ずバックアップを取ってからご使用ください\n\n"
-        "ご購入前に必ず取扱説明書をご確認ください。"
-    )
-    QMessageBox.about(None, "このソフトについて", text)
+    dlg = AboutDialog()
+    dlg.exec()
 
 
 class ThumbnailWidget(QFrame):
@@ -152,7 +434,7 @@ class PDFSplitterWindow(QMainWindow):
             "使い方：\n"
             "分割したい先頭ページをクリック（複数選択可）→「分割実行」で分割されます\n"
             "「クリア」で全選択解除\n"
-            "※枝番にする証拠は、1枚ずつ分割してください（枝番ごとに1ファイルになります）"
+            "※枝番を付与する証拠は、枝番ごとに分割してください"
         )
         help_label.setStyleSheet("""
             QLabel {
@@ -436,11 +718,18 @@ class PDFSplitterWindow(QMainWindow):
             return
         
         try:
-            # 出力先フォルダを作成
+            # 出力先フォルダを作成（同名フォルダがある場合は連番を付与）
             parent_dir = Path(self.pdf_path).parent
             base_name = Path(self.pdf_path).stem
             output_dir = parent_dir / f"{base_name}_分割"
-            output_dir.mkdir(exist_ok=True)
+            if output_dir.exists():
+                counter = 2
+                while True:
+                    output_dir = parent_dir / f"{base_name}_分割_{counter}"
+                    if not output_dir.exists():
+                        break
+                    counter += 1
+            output_dir.mkdir()
             
             # 分割実行
             output_files = []
