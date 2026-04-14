@@ -30,7 +30,7 @@ Your original PDF is never modified. Split files are saved to a new folder.
 ## Install
 
 Available on Microsoft Store:
-[Download LTL PDF Splitter](https://apps.microsoft.com/detail/9nj8r4fr587c?hl=ja-JP&gl=JP)
+[Download LTL PDF Splitter](https://apps.microsoft.com/detail/9nj8r4fr587c)
 
 ## License
 
